@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -25,18 +26,22 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 var cfg apiConfig
 
 func main() {
+	appFS := http.FileServer(http.Dir("."))
 
-	fs := http.FileServer(http.Dir("."))
+	apiRouter := chi.NewRouter()
+	apiRouter.Get("/healthz", handleHealth)
+	apiRouter.HandleFunc("/reset", handleReset)
 
-	// mux := http.NewServeMux()
-	r := chi.NewRouter()
-	r.Handle("/app/*", cfg.middlewareMetricsInc(http.StripPrefix("/app/", fs)))
-	r.Handle("/app", cfg.middlewareMetricsInc(http.StripPrefix("/app", fs)))
-	r.Get("/healthz", handleHealth)
-	r.Get("/metrics", handleMetrics)
-	r.HandleFunc("/reset", handleReset)
+	adminRouter := chi.NewRouter()
+	adminRouter.Get("/metrics", handleMetrics)
 
-	corsMux := middlewareCors(r)
+	appRouter := chi.NewRouter()
+	appRouter.Handle("/app/*", cfg.middlewareMetricsInc(http.StripPrefix("/app/", appFS)))
+	appRouter.Handle("/app", cfg.middlewareMetricsInc(http.StripPrefix("/app", appFS)))
+	appRouter.Mount("/api", apiRouter)
+	appRouter.Mount("/admin", adminRouter)
+
+	corsMux := middlewareCors(appRouter)
 
 	s := http.Server{
 		Addr:    ":8080",
@@ -65,9 +70,13 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleMetrics(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	html, err := os.ReadFile("admin/metrics/index.html")
+	if err != nil {
+		panic(err)
+	}
+	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(fmt.Sprintf("Hits: %v", cfg.fileserverHits)))
+	w.Write([]byte(fmt.Sprintf(string(html), cfg.fileserverHits)))
 }
 
 func handleReset(w http.ResponseWriter, r *http.Request) {
