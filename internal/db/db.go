@@ -23,8 +23,9 @@ type Chirp struct {
 }
 
 type User struct {
-	ID    int    `json:"id"`
-	Email string `json:"email"`
+	ID       int    `json:"id"`
+	Email    string `json:"email"`
+	Password string `json:"user"`
 }
 
 // NewDB creates a new database connection
@@ -72,7 +73,7 @@ func (db *DB) CreateChirp(body string) (Chirp, error) {
 }
 
 // CreateUser creates a new user and saves it to disk
-func (db *DB) CreateUser(email string) (User, error) {
+func (db *DB) CreateUser(email string, hPassword string) (User, error) {
 	fmt.Println("Creating chirp...")
 	db.mux.Lock()
 	defer db.mux.Unlock()
@@ -95,6 +96,7 @@ func (db *DB) CreateUser(email string) (User, error) {
 
 	newUser.ID = id
 	newUser.Email = email
+	newUser.Password = hPassword
 
 	dbStr.Users[id] = newUser
 	err = db.writeDB(dbStr)

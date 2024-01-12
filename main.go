@@ -4,49 +4,21 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	api "github.com/wipdev-tech/chirpy/internal/apiconfig"
 	"github.com/wipdev-tech/chirpy/internal/db"
 )
 
-type apiConfig struct {
-	fileserverHits int
-}
-
-func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cfg.fileserverHits++
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-var cfg apiConfig
-
-func middlewareCors(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
-		w.Header().Set("Access-Control-Allow-Headers", "*")
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
+var cfg api.Config
 var chirpsDB *db.DB
 
 func main() {
-    newDB, err := db.NewDB("database.json")
+	newDB, err := db.NewDB("database.json")
 	if err != nil {
 		panic(err)
 	}
-    chirpsDB = newDB
+	chirpsDB = newDB
 
-	appFS := http.FileServer(http.Dir("."))
+	appFS := http.FileServer(http.Dir("./static"))
 
 	apiRouter := chi.NewRouter()
 	apiRouter.Get("/healthz", handleHealth)
@@ -58,14 +30,15 @@ func main() {
 
 	adminRouter := chi.NewRouter()
 	adminRouter.Get("/metrics", handleMetrics)
+	adminRouter.Get("/metrics/", handleMetrics)
 
 	appRouter := chi.NewRouter()
-	appRouter.Handle("/app/*", cfg.middlewareMetricsInc(http.StripPrefix("/app/", appFS)))
-	appRouter.Handle("/app", cfg.middlewareMetricsInc(http.StripPrefix("/app", appFS)))
+	appRouter.Handle("/app/*", cfg.MiddlewareMetricsInc(http.StripPrefix("/app/", appFS)))
+	appRouter.Handle("/app", cfg.MiddlewareMetricsInc(http.StripPrefix("/app", appFS)))
 	appRouter.Mount("/api", apiRouter)
 	appRouter.Mount("/admin", adminRouter)
 
-	corsMux := middlewareCors(appRouter)
+	corsMux := api.MiddlewareCors(appRouter)
 
 	s := http.Server{
 		Addr:    ":8080",

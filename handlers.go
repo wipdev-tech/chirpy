@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -20,20 +21,20 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleMetrics(w http.ResponseWriter, r *http.Request) {
-	html, err := os.ReadFile("admin/metrics/index.html")
+	html, err := os.ReadFile("static/admin/metrics/index.html")
 	if err != nil {
 		panic(err)
 	}
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
-	_, err = w.Write([]byte(fmt.Sprintf(string(html), cfg.fileserverHits)))
+	_, err = w.Write([]byte(fmt.Sprintf(string(html), cfg.FileserverHits)))
 	if err != nil {
 		panic(err)
 	}
 }
 
 func handleReset(w http.ResponseWriter, r *http.Request) {
-	cfg.fileserverHits = 0
+	cfg.FileserverHits = 0
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, err := w.Write([]byte("OK"))
@@ -118,7 +119,8 @@ func handleNewChirp(w http.ResponseWriter, r *http.Request) {
 
 func handleNewUser(w http.ResponseWriter, r *http.Request) {
 	type usr struct {
-		Email string
+		Email    string
+		Password string
 	}
 
 	inUsr := usr{}
@@ -127,7 +129,12 @@ func handleNewUser(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 	}
 
-	newUser, err := chirpsDB.CreateUser(inUsr.Email)
+	hPassword, err := bcrypt.GenerateFromPassword([]byte(inUsr.Password), 10)
+	if err != nil {
+		panic(err)
+	}
+
+	newUser, err := chirpsDB.CreateUser(inUsr.Email, string(hPassword))
 	if err != nil {
 		fmt.Println("Error creating new user")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -139,5 +146,4 @@ func handleNewUser(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		panic(err)
 	}
-	return
 }
