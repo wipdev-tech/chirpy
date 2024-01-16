@@ -5,21 +5,14 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
-	api "github.com/wipdev-tech/chirpy/internal/apiconfig"
-	"github.com/wipdev-tech/chirpy/internal/db"
+	"github.com/wipdev-tech/chirpy/internal/service"
 )
 
-var cfg api.Config
-var chirpsDB *db.DB
+var s service.Service
 
 func main() {
 	godotenv.Load()
-
-	newDB, err := db.NewDB("database.json")
-	if err != nil {
-		panic(err)
-	}
-	chirpsDB = newDB
+	s.InitDB()
 
 	appFS := http.FileServer(http.Dir("./static"))
 
@@ -37,12 +30,12 @@ func main() {
 	adminRouter.Get("/metrics/", handleMetrics)
 
 	appRouter := chi.NewRouter()
-	appRouter.Handle("/app/*", cfg.MiddlewareMetricsInc(http.StripPrefix("/app/", appFS)))
-	appRouter.Handle("/app", cfg.MiddlewareMetricsInc(http.StripPrefix("/app", appFS)))
+	appRouter.Handle("/app/*", s.MiddlewareMetricsInc(http.StripPrefix("/app/", appFS)))
+	appRouter.Handle("/app", s.MiddlewareMetricsInc(http.StripPrefix("/app", appFS)))
 	appRouter.Mount("/api", apiRouter)
 	appRouter.Mount("/admin", adminRouter)
 
-	corsMux := api.MiddlewareCors(appRouter)
+	corsMux := s.MiddlewareCors(appRouter)
 
 	s := http.Server{
 		Addr:    ":8080",

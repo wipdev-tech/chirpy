@@ -1,3 +1,5 @@
+// This is the main entry point for the application. It includes the routing
+// code and the associated handlers
 package main
 
 import (
@@ -5,13 +7,12 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
-func handleHealth(w http.ResponseWriter, r *http.Request) {
+func handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, err := w.Write([]byte("OK"))
@@ -20,21 +21,21 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func handleMetrics(w http.ResponseWriter, r *http.Request) {
+func handleMetrics(w http.ResponseWriter, _ *http.Request) {
 	html, err := os.ReadFile("static/admin/metrics/index.html")
 	if err != nil {
 		panic(err)
 	}
 	w.Header().Set("Content-Type", "text/html")
 	w.WriteHeader(http.StatusOK)
-	_, err = w.Write([]byte(fmt.Sprintf(string(html), cfg.FileserverHits)))
+	_, err = w.Write([]byte(fmt.Sprintf(string(html), s.FileserverHits)))
 	if err != nil {
 		panic(err)
 	}
 }
 
-func handleReset(w http.ResponseWriter, r *http.Request) {
-	cfg.FileserverHits = 0
+func handleReset(w http.ResponseWriter, _ *http.Request) {
+	s.FileserverHits = 0
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, err := w.Write([]byte("OK"))
@@ -43,36 +44,26 @@ func handleReset(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func handleGetChirps(w http.ResponseWriter, r *http.Request) {
-	chirps, err := chirpsDB.GetChirps()
-	if err != nil {
-		panic(err)
-	}
-
+func handleGetChirps(w http.ResponseWriter, _ *http.Request) {
+	chirps := s.GetChirps()
 	w.WriteHeader(http.StatusOK)
-	err = json.NewEncoder(w).Encode(chirps)
+	err := json.NewEncoder(w).Encode(chirps)
 	if err != nil {
 		panic(err)
 	}
 }
 
 func handleGetChirp(w http.ResponseWriter, r *http.Request) {
-	chirps, err := chirpsDB.GetChirps()
-	if err != nil {
-		panic(err)
-	}
-
 	chirpID := chi.URLParam(r, "chirpID")
-	fmt.Println(chirpID)
-	for _, c := range chirps {
-		if fmt.Sprintf("%d", c.ID) == chirpID {
-			w.WriteHeader(http.StatusOK)
-			err = json.NewEncoder(w).Encode(c)
-			if err != nil {
-				panic(err)
-			}
-			return
+	chirp, ok := s.GetChirp(chirpID)
+
+	if ok {
+		w.WriteHeader(http.StatusOK)
+		err := json.NewEncoder(w).Encode(chirp)
+		if err != nil {
+			panic(err)
 		}
+		return
 	}
 
 	w.WriteHeader(http.StatusNotFound)
@@ -91,16 +82,7 @@ func handleNewChirp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(inMsg.Body) <= 140 {
-		inFields := strings.Fields(inMsg.Body)
-		for i, f := range inFields {
-			lower := strings.ToLower(f)
-			if lower == "kerfuffle" || lower == "sharbert" || lower == "fornax" {
-				inFields[i] = "****"
-			}
-		}
-		cleaned := strings.Join(inFields, " ")
-
-		newChirp, err := chirpsDB.CreateChirp(cleaned)
+		newChirp, err := s.CreateChirp(inMsg.Body)
 		if err != nil {
 			fmt.Println("Error creating new chirp")
 			w.WriteHeader(http.StatusInternalServerError)
