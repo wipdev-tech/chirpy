@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/wipdev-tech/chirpy/internal/db"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Service struct {
@@ -78,4 +79,33 @@ func (s *Service) CreateChirp(body string) (db.Chirp, error) {
 	cleaned := strings.Join(inFields, " ")
 
 	return s.dbConn.CreateChirp(cleaned)
+}
+
+func (s *Service) CreateUser(email string, password string) (db.User, error) {
+	hPassword, err := bcrypt.GenerateFromPassword([]byte(password), 10)
+	if err != nil {
+		panic(err)
+	}
+
+	return s.dbConn.CreateUser(email, string(hPassword))
+}
+
+func (s *Service) Login(email string, password string) (db.User, bool, error) {
+	var user db.User
+
+	users, err := s.dbConn.GetUsers()
+	if err != nil {
+		fmt.Println("Error getting users")
+		return user, false, err
+	}
+
+	for _, u := range users {
+		emailMatch := u.Email == email
+		passwordMatch := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
+		if emailMatch && passwordMatch == nil {
+			return u, true, nil
+		}
+	}
+
+	return user, false, nil
 }

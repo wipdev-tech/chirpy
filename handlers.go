@@ -9,7 +9,6 @@ import (
 	"os"
 
 	"github.com/go-chi/chi/v5"
-	"golang.org/x/crypto/bcrypt"
 )
 
 func handleHealth(w http.ResponseWriter, _ *http.Request) {
@@ -118,14 +117,7 @@ func handleNewUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Printf("Hashing new password: `%s`\n", inUsr.Password)
-	hPassword, err := bcrypt.GenerateFromPassword([]byte(inUsr.Password), 10)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println("Hashed as:", string(hPassword))
-
-	dbUser, err := chirpsDB.CreateUser(inUsr.Email, string(hPassword))
+	dbUser, err := s.CreateUser(inUsr.Email, inUsr.Password)
 	if err != nil {
 		fmt.Println("Error creating new user")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -158,28 +150,20 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	users, err := chirpsDB.GetUsers()
+	user, ok, err := s.Login(inUsr.Email, inUsr.Password)
 	if err != nil {
-		fmt.Println("Error getting users")
 		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
-	fmt.Println(len(users))
 
-	for _, u := range users {
-		fmt.Printf("In-DB PW for user %s is %s\n", u.Email, u.Password)
-		fmt.Println("Checking:", inUsr.Password)
-		emailMatch := u.Email == inUsr.Email
-		passwordMatch := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(inUsr.Password))
-		if emailMatch && passwordMatch == nil {
-			fmt.Println("match!!!")
-			outUsr := OutUsr{ID: u.ID, Email: u.Email}
-			w.WriteHeader(http.StatusOK)
-			err = json.NewEncoder(w).Encode(outUsr)
-			if err != nil {
-				panic(err)
-			}
-			return
+	if ok {
+		outUsr := OutUsr{ID: user.ID, Email: user.Email}
+		w.WriteHeader(http.StatusOK)
+		err = json.NewEncoder(w).Encode(outUsr)
+		if err != nil {
+			panic(err)
 		}
+		return
 	}
 
 	w.WriteHeader(http.StatusUnauthorized)
