@@ -187,7 +187,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("In-DB PW for user %s is %s\n", u.Email, u.Password)
 		fmt.Println("Checking:", inUsr.Password)
 		emailMatch := u.Email == inUsr.Email
-		passwordMatch := bcrypt.CompareHashAndPassword([]byte(inUsr.Password), []byte(u.Password))
+		passwordMatch := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(inUsr.Password))
 		if emailMatch && passwordMatch == nil {
 			fmt.Println("match!!!")
 			outUsr := OutUsr{ID: u.ID, Email: u.Email}
