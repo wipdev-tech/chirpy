@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/joho/godotenv"
 	api "github.com/wipdev-tech/chirpy/internal/apiconfig"
 	"github.com/wipdev-tech/chirpy/internal/db"
 )
@@ -12,6 +13,8 @@ var cfg api.Config
 var chirpsDB *db.DB
 
 func main() {
+	godotenv.Load()
+
 	newDB, err := db.NewDB("database.json")
 	if err != nil {
 		panic(err)
