@@ -74,7 +74,7 @@ func (db *DB) CreateChirp(body string) (Chirp, error) {
 
 // CreateUser creates a new user and saves it to disk
 func (db *DB) CreateUser(email string, hPassword string) (User, error) {
-	fmt.Println("Creating chirp...")
+	fmt.Println("Creating user...")
 	db.mux.Lock()
 	defer db.mux.Unlock()
 
