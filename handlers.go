@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -134,13 +135,9 @@ func handleNewUser(w http.ResponseWriter, r *http.Request) {
 
 func handleLogin(w http.ResponseWriter, r *http.Request) {
 	type InUsr struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}
-
-	type OutUsr struct {
-		ID    int    `json:"id"`
-		Email string `json:"email"`
+		Email            string `json:"email"`
+		Password         string `json:"password"`
+		ExpiresInSeconds int    `json:"expires_in_seconds"`
 	}
 
 	inUsr := InUsr{}
@@ -150,21 +147,58 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, ok, err := s.Login(inUsr.Email, inUsr.Password)
+	expiry := inUsr.ExpiresInSeconds
+	if expiry == 0 {
+		expiry = 86400
+	}
+
+	user, err := s.Login(inUsr.Email, inUsr.Password, expiry)
+	if err != nil && err.Error() == "user doesn't exist" {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	if err != nil {
+		fmt.Println("Error logging in:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	err = json.NewEncoder(w).Encode(user)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func handleUpdateUser(w http.ResponseWriter, r *http.Request) {
+	type InUsr struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	inUsr := InUsr{}
+	err := json.NewDecoder(r.Body).Decode(&inUsr)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	bearer := strings.Replace(r.Header.Get("Authorization"), "Bearer ", "", -1)
+	userId, err := s.AuthorizeUser(bearer)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	newUser, err := s.UpdateUser(userId, inUsr.Email, inUsr.Password)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	if ok {
-		outUsr := OutUsr{ID: user.ID, Email: user.Email}
-		w.WriteHeader(http.StatusOK)
-		err = json.NewEncoder(w).Encode(outUsr)
-		if err != nil {
-			panic(err)
-		}
-		return
+	err = json.NewEncoder(w).Encode(newUser)
+	if err != nil {
+		panic(err)
 	}
-
-	w.WriteHeader(http.StatusUnauthorized)
 }

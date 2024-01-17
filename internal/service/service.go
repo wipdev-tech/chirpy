@@ -6,11 +6,26 @@ package service
 import (
 	"fmt"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
+	"time"
 
+	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/wipdev-tech/chirpy/internal/db"
 	"golang.org/x/crypto/bcrypt"
 )
+
+type outUser struct {
+	ID    int    `json:"id"`
+	Email string `json:"email"`
+}
+
+type outUserWithToken struct {
+	ID    int    `json:"id"`
+	Email string `json:"email"`
+	Token string `json:"token"`
+}
 
 // Service contains the app data (right now it's only the server hits and DB
 // connection), middleware functions, business logic, and calls to the DB.
@@ -99,11 +114,21 @@ func (s *Service) CreateChirp(body string) (db.Chirp, error) {
 }
 
 // CreateUser adds a new user to the database after hashing the given password.
-// TODO: validate if the user already exists
 func (s *Service) CreateUser(email string, password string) (db.User, error) {
+	users, err := s.dbConn.GetUsers()
+	if err != nil {
+		return db.User{}, err
+	}
+
+	for _, c := range users {
+		if c.Email != email {
+			return db.User{}, fmt.Errorf("Email %v already exists", email)
+		}
+	}
+
 	hPassword, err := bcrypt.GenerateFromPassword([]byte(password), 10)
 	if err != nil {
-		panic(err)
+		return db.User{}, err
 	}
 
 	return s.dbConn.CreateUser(email, string(hPassword))
@@ -113,22 +138,88 @@ func (s *Service) CreateUser(email string, password string) (db.User, error) {
 // stored at the database. It returns the user, a boolean indicating whether it
 // was found (to be used with a comma-ok idiom), and an error if it happened
 // when calling the DB.
-func (s *Service) Login(email string, password string) (db.User, bool, error) {
-	var user db.User
+func (s *Service) Login(email string, password string, expiry int) (outUserWithToken, error) {
+	var outUser outUserWithToken
 
 	users, err := s.dbConn.GetUsers()
 	if err != nil {
-		fmt.Println("Error getting users")
-		return user, false, err
+		fmt.Println("error getting users")
+		return outUser, err
 	}
 
 	for _, u := range users {
 		emailMatch := u.Email == email
-		passwordMatch := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
-		if emailMatch && passwordMatch == nil {
-			return u, true, nil
+		passMatch := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password)) == nil
+		if emailMatch && passMatch {
+			token := jwt.NewWithClaims(
+				jwt.SigningMethodHS256,
+				jwt.RegisteredClaims{
+					Issuer:   "chirpy",
+					IssuedAt: jwt.NewNumericDate(time.Now()),
+					ExpiresAt: jwt.NewNumericDate(
+						time.Now().Add(time.Duration(expiry) * time.Second),
+					),
+					Subject: fmt.Sprint(u.ID),
+				},
+			)
+
+			jwtSecret := os.Getenv("JWT_SECRET")
+			tokenStr, err := token.SignedString([]byte(jwtSecret))
+			if err != nil {
+				return outUser, err
+			}
+
+			outUser = outUserWithToken{
+				ID:    u.ID,
+				Email: u.Email,
+				Token: tokenStr,
+			}
+
+			return outUser, nil
 		}
 	}
 
-	return user, false, nil
+	return outUser, fmt.Errorf("user doesn't exist")
+}
+
+func (s *Service) AuthorizeUser(bearer string) (int, error) {
+	claims := &jwt.RegisteredClaims{}
+	keyfunc := func(toke *jwt.Token) (interface{}, error) {
+		return []byte(os.Getenv("JWT_SECRET")), nil
+	}
+	token, err := jwt.ParseWithClaims(bearer, claims, keyfunc)
+	if err != nil {
+		return 0, err
+	}
+
+	userIdStr, err := token.Claims.GetSubject()
+	if err != nil {
+		return 0, err
+	}
+
+	userId, err := strconv.Atoi(userIdStr)
+	if err != nil {
+		return 0, err
+	}
+
+	return userId, err
+}
+
+func (s *Service) UpdateUser(id int, newEmail string, newPassword string) (outUser, error) {
+	hNewPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), 10)
+	if err != nil {
+		return outUser{}, err
+	}
+
+	updatedUser, err := s.dbConn.UpdateUser(id, newEmail, string(hNewPassword))
+	if err != nil {
+		return outUser{}, err
+	}
+
+	out := outUser{
+		ID:    updatedUser.ID,
+		Email: updatedUser.Email,
+	}
+
+	return out, nil
 }

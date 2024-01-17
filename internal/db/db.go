@@ -112,16 +112,41 @@ func (db *DB) CreateUser(email string, hPassword string) (User, error) {
 func (db *DB) GetUsers() ([]User, error) {
 	users := []User{}
 
-	dbStr, err := db.loadDB()
+	dbStruct, err := db.loadDB()
 	if err != nil {
 		return users, err
 	}
 
-	for _, u := range dbStr.Users {
+	for _, u := range dbStruct.Users {
 		users = append(users, u)
 	}
 
 	return users, err
+}
+
+func (db *DB) UpdateUser(id int, newEmail string, hNewPassword string) (User, error) {
+	newUser := User{}
+
+	dbStruct, err := db.loadDB()
+	if err != nil {
+		return newUser, err
+	}
+
+	for i, u := range dbStruct.Users {
+		if u.ID == id {
+			newUser = User{
+				ID:       id,
+				Email:    newEmail,
+				Password: hNewPassword,
+			}
+			dbStruct.Users[i] = newUser
+			break
+		}
+	}
+
+	db.writeDB(dbStruct)
+	fmt.Println(dbStruct.Users)
+	return newUser, err
 }
 
 // GetChirps returns all chirps in the database
