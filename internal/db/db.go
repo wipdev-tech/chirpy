@@ -145,7 +145,6 @@ func (db *DB) UpdateUser(id int, newEmail string, hNewPassword string) (User, er
 	}
 
 	db.writeDB(dbStruct)
-	fmt.Println(dbStruct.Users)
 	return newUser, err
 }
 

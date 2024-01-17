@@ -12,6 +12,14 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// reqUserData is used by handlers to decode user data from incoming HTTP
+// requests
+type reqUserData struct {
+	Email            string `json:"email"`
+	Password         string `json:"password"`
+	ExpiresInSeconds int    `json:"expires_in_seconds"`
+}
+
 func handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
@@ -101,17 +109,12 @@ func handleNewChirp(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleNewUser(w http.ResponseWriter, r *http.Request) {
-	type InUsr struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}
-
 	type OutUsr struct {
 		ID    int    `json:"id"`
 		Email string `json:"email"`
 	}
 
-	inUsr := InUsr{}
+	inUsr := reqUserData{}
 	err := json.NewDecoder(r.Body).Decode(&inUsr)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -134,13 +137,7 @@ func handleNewUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleLogin(w http.ResponseWriter, r *http.Request) {
-	type InUsr struct {
-		Email            string `json:"email"`
-		Password         string `json:"password"`
-		ExpiresInSeconds int    `json:"expires_in_seconds"`
-	}
-
-	inUsr := InUsr{}
+	inUsr := reqUserData{}
 	err := json.NewDecoder(r.Body).Decode(&inUsr)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -172,12 +169,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleUpdateUser(w http.ResponseWriter, r *http.Request) {
-	type InUsr struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}
-
-	inUsr := InUsr{}
+	inUsr := reqUserData{}
 	err := json.NewDecoder(r.Body).Decode(&inUsr)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -185,13 +177,13 @@ func handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	bearer := strings.Replace(r.Header.Get("Authorization"), "Bearer ", "", -1)
-	userId, err := s.AuthorizeUser(bearer)
+	userID, err := s.AuthorizeUser(bearer)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 
-	newUser, err := s.UpdateUser(userId, inUsr.Email, inUsr.Password)
+	newUser, err := s.UpdateUser(userID, inUsr.Email, inUsr.Password)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return

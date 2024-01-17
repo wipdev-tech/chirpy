@@ -16,14 +16,15 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-type outUser struct {
+// ResUserData holds user data to be used by handlers in HTTP responses
+type ResUserData struct {
 	ID    int    `json:"id"`
 	Email string `json:"email"`
 }
 
-type outUserWithToken struct {
-	ID    int    `json:"id"`
-	Email string `json:"email"`
+// ResUserDataT embeds resUserData with the addition of a JWT
+type ResUserDataT struct {
+	ResUserData
 	Token string `json:"token"`
 }
 
@@ -138,8 +139,8 @@ func (s *Service) CreateUser(email string, password string) (db.User, error) {
 // stored at the database. It returns the user, a boolean indicating whether it
 // was found (to be used with a comma-ok idiom), and an error if it happened
 // when calling the DB.
-func (s *Service) Login(email string, password string, expiry int) (outUserWithToken, error) {
-	var outUser outUserWithToken
+func (s *Service) Login(email string, password string, expiry int) (ResUserDataT, error) {
+	var outUser ResUserDataT
 
 	users, err := s.dbConn.GetUsers()
 	if err != nil {
@@ -169,12 +170,9 @@ func (s *Service) Login(email string, password string, expiry int) (outUserWithT
 				return outUser, err
 			}
 
-			outUser = outUserWithToken{
-				ID:    u.ID,
-				Email: u.Email,
-				Token: tokenStr,
-			}
-
+			outUser.ID = u.ID
+			outUser.Email = u.Email
+			outUser.Token = tokenStr
 			return outUser, nil
 		}
 	}
@@ -182,6 +180,8 @@ func (s *Service) Login(email string, password string, expiry int) (outUserWithT
 	return outUser, fmt.Errorf("user doesn't exist")
 }
 
+// AuthorizeUser takes a bearer token and returns the integer ID of the user
+// that owns the token
 func (s *Service) AuthorizeUser(bearer string) (int, error) {
 	claims := &jwt.RegisteredClaims{}
 	keyfunc := func(toke *jwt.Token) (interface{}, error) {
@@ -192,31 +192,33 @@ func (s *Service) AuthorizeUser(bearer string) (int, error) {
 		return 0, err
 	}
 
-	userIdStr, err := token.Claims.GetSubject()
+	userIDStr, err := token.Claims.GetSubject()
 	if err != nil {
 		return 0, err
 	}
 
-	userId, err := strconv.Atoi(userIdStr)
+	userID, err := strconv.Atoi(userIDStr)
 	if err != nil {
 		return 0, err
 	}
 
-	return userId, err
+	return userID, err
 }
 
-func (s *Service) UpdateUser(id int, newEmail string, newPassword string) (outUser, error) {
+// UpdateUser updates the email and password of the user whose ID is provided
+// in the first argument
+func (s *Service) UpdateUser(id int, newEmail string, newPassword string) (ResUserData, error) {
 	hNewPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), 10)
 	if err != nil {
-		return outUser{}, err
+		return ResUserData{}, err
 	}
 
 	updatedUser, err := s.dbConn.UpdateUser(id, newEmail, string(hNewPassword))
 	if err != nil {
-		return outUser{}, err
+		return ResUserData{}, err
 	}
 
-	out := outUser{
+	out := ResUserData{
 		ID:    updatedUser.ID,
 		Email: updatedUser.Email,
 	}
