@@ -15,9 +15,8 @@ import (
 // reqUserData is used by handlers to decode user data from incoming HTTP
 // requests
 type reqUserData struct {
-	Email            string `json:"email"`
-	Password         string `json:"password"`
-	ExpiresInSeconds int    `json:"expires_in_seconds"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 func handleHealth(w http.ResponseWriter, _ *http.Request) {
@@ -144,12 +143,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	expiry := inUsr.ExpiresInSeconds
-	if expiry == 0 {
-		expiry = 86400
-	}
-
-	user, err := s.Login(inUsr.Email, inUsr.Password, expiry)
+	user, err := s.Login(inUsr.Email, inUsr.Password)
 	if err != nil && err.Error() == "user doesn't exist" {
 		w.WriteHeader(http.StatusUnauthorized)
 		return
@@ -193,4 +187,42 @@ func handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func handleRefresh(w http.ResponseWriter, r *http.Request) {
+	bearer := strings.Replace(r.Header.Get("Authorization"), "Bearer ", "", -1)
+	userID, err := s.AuthorizeRefresh(bearer)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	newAccess, err := s.Refresh(userID)
+	if err != nil {
+		fmt.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	err = json.NewEncoder(w).Encode(newAccess)
+	if err != nil {
+		panic(err)
+	}
+}
+
+func handleRevoke(w http.ResponseWriter, r *http.Request) {
+	bearer := strings.Replace(r.Header.Get("Authorization"), "Bearer ", "", -1)
+	_, err := s.AuthorizeRefresh(bearer)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	err = s.Revoke(bearer)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }

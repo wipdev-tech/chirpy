@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 )
 
 type DB struct {
@@ -13,8 +14,9 @@ type DB struct {
 }
 
 type DBStructure struct {
-	Chirps map[int]Chirp `json:"chirps"`
-	Users  map[int]User  `json:"users"`
+	Chirps        map[int]Chirp           `json:"chirps"`
+	Users         map[int]User            `json:"users"`
+	RevokedTokens map[string]RevokedToken `json:"revoked_tokens"`
 }
 
 type Chirp struct {
@@ -26,6 +28,11 @@ type User struct {
 	ID       int    `json:"id"`
 	Email    string `json:"email"`
 	Password string `json:"user"`
+}
+
+type RevokedToken struct {
+	TokenStr  string    `json:"token"`
+	RevokedAt time.Time `json:"revoked_at"`
 }
 
 // NewDB creates a new database connection
@@ -175,8 +182,9 @@ func (db *DB) ensureDB() error {
 
 	emptyDB, err := json.Marshal(
 		DBStructure{
-			Chirps: map[int]Chirp{},
-			Users:  map[int]User{},
+			Chirps:        map[int]Chirp{},
+			Users:         map[int]User{},
+			RevokedTokens: map[string]RevokedToken{},
 		},
 	)
 	if err != nil {
@@ -213,4 +221,45 @@ func (db *DB) writeDB(dbStr DBStructure) error {
 	}
 
 	return nil
+}
+
+func (db *DB) AddRevokedToken(token string, revokedAt time.Time) error {
+	db.mux.Lock()
+	defer db.mux.Unlock()
+
+	dbStr, err := db.loadDB()
+	if err != nil {
+		return err
+	}
+
+	for _, t := range dbStr.RevokedTokens {
+		if t.TokenStr == token {
+			return nil
+		}
+	}
+
+	newRevokedToken := RevokedToken{
+		TokenStr:  token,
+		RevokedAt: revokedAt,
+	}
+
+	dbStr.RevokedTokens[token] = newRevokedToken
+	err = db.writeDB(dbStr)
+	return err
+}
+
+// GetTokens returns all revoked tokens in the database
+func (db *DB) GetRevokedTokens() ([]RevokedToken, error) {
+	tokens := []RevokedToken{}
+
+	dbStruct, err := db.loadDB()
+	if err != nil {
+		return tokens, err
+	}
+
+	for _, t := range dbStruct.RevokedTokens {
+		tokens = append(tokens, t)
+	}
+
+	return tokens, err
 }

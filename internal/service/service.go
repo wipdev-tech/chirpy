@@ -22,9 +22,15 @@ type ResUserData struct {
 	Email string `json:"email"`
 }
 
-// ResUserDataT embeds resUserData with the addition of a JWT
+// ResUserDataT embeds resUserData with the addition of access and refresh JWTS
 type ResUserDataT struct {
 	ResUserData
+	Token        string `json:"token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
+// ResRefresh holds only a new access JWT generated after a successful refresh
+type ResRefresh struct {
 	Token string `json:"token"`
 }
 
@@ -136,10 +142,9 @@ func (s *Service) CreateUser(email string, password string) (db.User, error) {
 }
 
 // Login simply matches the email and password against the ones currently
-// stored at the database. It returns the user, a boolean indicating whether it
-// was found (to be used with a comma-ok idiom), and an error if it happened
-// when calling the DB.
-func (s *Service) Login(email string, password string, expiry int) (ResUserDataT, error) {
+// stored at the database. It returns the the user data with access and refresh
+// JWTs.
+func (s *Service) Login(email string, password string) (ResUserDataT, error) {
 	var outUser ResUserDataT
 
 	users, err := s.dbConn.GetUsers()
@@ -152,32 +157,71 @@ func (s *Service) Login(email string, password string, expiry int) (ResUserDataT
 		emailMatch := u.Email == email
 		passMatch := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password)) == nil
 		if emailMatch && passMatch {
-			token := jwt.NewWithClaims(
-				jwt.SigningMethodHS256,
-				jwt.RegisteredClaims{
-					Issuer:   "chirpy",
-					IssuedAt: jwt.NewNumericDate(time.Now()),
-					ExpiresAt: jwt.NewNumericDate(
-						time.Now().Add(time.Duration(expiry) * time.Second),
-					),
-					Subject: fmt.Sprint(u.ID),
-				},
-			)
+			accessStr, err := generateAccess(u.ID)
+			if err != nil {
+				return outUser, err
+			}
 
-			jwtSecret := os.Getenv("JWT_SECRET")
-			tokenStr, err := token.SignedString([]byte(jwtSecret))
+			refreshStr, err := generateRefresh(u.ID)
 			if err != nil {
 				return outUser, err
 			}
 
 			outUser.ID = u.ID
 			outUser.Email = u.Email
-			outUser.Token = tokenStr
+			outUser.Token = accessStr
+			outUser.RefreshToken = refreshStr
 			return outUser, nil
 		}
 	}
 
 	return outUser, fmt.Errorf("user doesn't exist")
+}
+
+func generateAccess(userID int) (accessStr string, err error) {
+	jwtSecret := os.Getenv("JWT_SECRET")
+
+	access := jwt.NewWithClaims(
+		jwt.SigningMethodHS256,
+		jwt.RegisteredClaims{
+			Issuer:   "chirpy-access",
+			IssuedAt: jwt.NewNumericDate(time.Now()),
+			ExpiresAt: jwt.NewNumericDate(
+				time.Now().Add(1 * time.Hour),
+			),
+			Subject: fmt.Sprint(userID),
+		},
+	)
+
+	accessStr, err = access.SignedString([]byte(jwtSecret))
+	if err != nil {
+		return "", fmt.Errorf("couldn't sign access token: %v", err)
+	}
+
+	return accessStr, err
+}
+
+func generateRefresh(userID int) (refreshStr string, err error) {
+	jwtSecret := os.Getenv("JWT_SECRET")
+
+	refresh := jwt.NewWithClaims(
+		jwt.SigningMethodHS256,
+		jwt.RegisteredClaims{
+			Issuer:   "chirpy-refresh",
+			IssuedAt: jwt.NewNumericDate(time.Now()),
+			ExpiresAt: jwt.NewNumericDate(
+				time.Now().Add(60 * 24 * time.Hour),
+			),
+			Subject: fmt.Sprint(userID),
+		},
+	)
+
+	refreshStr, err = refresh.SignedString([]byte(jwtSecret))
+	if err != nil {
+		return "", fmt.Errorf("couldn't sign refresh token: %v", err)
+	}
+
+	return refreshStr, err
 }
 
 // AuthorizeUser takes a bearer token and returns the integer ID of the user
@@ -190,6 +234,14 @@ func (s *Service) AuthorizeUser(bearer string) (int, error) {
 	token, err := jwt.ParseWithClaims(bearer, claims, keyfunc)
 	if err != nil {
 		return 0, err
+	}
+
+	issuer, err := token.Claims.GetIssuer()
+	if err != nil {
+		return 0, err
+	}
+	if issuer != "chirpy-access" {
+		return 0, fmt.Errorf("wrong issuer")
 	}
 
 	userIDStr, err := token.Claims.GetSubject()
@@ -224,4 +276,60 @@ func (s *Service) UpdateUser(id int, newEmail string, newPassword string) (ResUs
 	}
 
 	return out, nil
+}
+
+func (s *Service) AuthorizeRefresh(bearer string) (userID int, err error) {
+	revokedTokens, err := s.dbConn.GetRevokedTokens()
+	if err != nil {
+		return 0, err
+	}
+	for _, rt := range revokedTokens {
+		if rt.TokenStr == bearer {
+			return 0, fmt.Errorf("revoked token")
+		}
+	}
+
+	claims := &jwt.RegisteredClaims{}
+	keyfunc := func(toke *jwt.Token) (interface{}, error) {
+		return []byte(os.Getenv("JWT_SECRET")), nil
+	}
+	token, err := jwt.ParseWithClaims(bearer, claims, keyfunc)
+	if err != nil {
+		return 0, err
+	}
+
+	issuer, err := token.Claims.GetIssuer()
+	if err != nil {
+		return 0, err
+	}
+	if issuer != "chirpy-refresh" {
+		return 0, fmt.Errorf("wrong issuer")
+	}
+
+	userIDStr, err := token.Claims.GetSubject()
+	if err != nil {
+		return 0, err
+	}
+
+	userID, err = strconv.Atoi(userIDStr)
+	if err != nil {
+		return 0, err
+	}
+
+	return userID, err
+}
+
+func (s *Service) Refresh(userID int) (ResRefresh, error) {
+	newAccessStr, err := generateAccess(userID)
+	if err != nil {
+		return ResRefresh{}, err
+	}
+
+	newAccess := ResRefresh{Token: newAccessStr}
+	return newAccess, err
+}
+
+func (s *Service) Revoke(bearer string) error {
+	err := s.dbConn.AddRevokedToken(bearer, time.Now())
+	return err
 }
