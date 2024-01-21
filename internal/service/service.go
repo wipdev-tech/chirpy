@@ -278,6 +278,8 @@ func (s *Service) UpdateUser(id int, newEmail string, newPassword string) (ResUs
 	return out, nil
 }
 
+// AuthorizeRefresh checks if a refresh token is valid, which means it is 1)
+// not revoked 2) a valid JWT and 3) issued as a refresh token.
 func (s *Service) AuthorizeRefresh(bearer string) (userID int, err error) {
 	revokedTokens, err := s.dbConn.GetRevokedTokens()
 	if err != nil {
@@ -319,6 +321,7 @@ func (s *Service) AuthorizeRefresh(bearer string) (userID int, err error) {
 	return userID, err
 }
 
+// Refresh generates a new access token for the given user ID
 func (s *Service) Refresh(userID int) (ResRefresh, error) {
 	newAccessStr, err := generateAccess(userID)
 	if err != nil {
@@ -329,6 +332,7 @@ func (s *Service) Refresh(userID int) (ResRefresh, error) {
 	return newAccess, err
 }
 
+// Revoke stores the given bearer token in the database
 func (s *Service) Revoke(bearer string) error {
 	err := s.dbConn.AddRevokedToken(bearer, time.Now())
 	return err
