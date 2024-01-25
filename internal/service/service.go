@@ -129,7 +129,7 @@ func (s *Service) CreateUser(email string, password string) (db.User, error) {
 
 	for _, c := range users {
 		if c.Email != email {
-			return db.User{}, fmt.Errorf("Email %v already exists", email)
+			return db.User{}, fmt.Errorf("email %v already exists", email)
 		}
 	}
 

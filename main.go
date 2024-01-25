@@ -11,7 +11,10 @@ import (
 var s service.Service
 
 func main() {
-	godotenv.Load()
+	err := godotenv.Load()
+	if err != nil {
+		panic(err)
+	}
 	s.InitDB()
 
 	appFS := http.FileServer(http.Dir("./static"))

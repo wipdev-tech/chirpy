@@ -1,3 +1,4 @@
+// Package db has the DB types and functionality
 package db
 
 import (
@@ -8,28 +9,34 @@ import (
 	"time"
 )
 
+// DB is the database connection struct
 type DB struct {
 	path string
 	mux  *sync.RWMutex
 }
 
-type DBStructure struct {
+// dStruct is the struct representation of the database
+type dStruct struct {
 	Chirps        map[int]Chirp           `json:"chirps"`
 	Users         map[int]User            `json:"users"`
 	RevokedTokens map[string]RevokedToken `json:"revoked_tokens"`
 }
 
+// Chirp holds data associated with a chirp in the chirps database table
 type Chirp struct {
 	ID   int    `json:"id"`
 	Body string `json:"body"`
 }
 
+// User holds data associated with a user in the users database table
 type User struct {
 	ID       int    `json:"id"`
 	Email    string `json:"email"`
 	Password string `json:"user"`
 }
 
+// RevokedToken holds data associated with a revoked token in the
+// revoked_tokens database table
 type RevokedToken struct {
 	TokenStr  string    `json:"token"`
 	RevokedAt time.Time `json:"revoked_at"`
@@ -131,6 +138,8 @@ func (db *DB) GetUsers() ([]User, error) {
 	return users, err
 }
 
+// UpdateUser updates the data for the given ID with a new email and (hashed)
+// password
 func (db *DB) UpdateUser(id int, newEmail string, hNewPassword string) (User, error) {
 	newUser := User{}
 
@@ -151,7 +160,7 @@ func (db *DB) UpdateUser(id int, newEmail string, hNewPassword string) (User, er
 		}
 	}
 
-	db.writeDB(dbStruct)
+	err = db.writeDB(dbStruct)
 	return newUser, err
 }
 
@@ -181,7 +190,7 @@ func (db *DB) ensureDB() error {
 	}
 
 	emptyDB, err := json.Marshal(
-		DBStructure{
+		dStruct{
 			Chirps:        map[int]Chirp{},
 			Users:         map[int]User{},
 			RevokedTokens: map[string]RevokedToken{},
@@ -195,8 +204,8 @@ func (db *DB) ensureDB() error {
 }
 
 // loadDB reads the database file into memory
-func (db *DB) loadDB() (DBStructure, error) {
-	dbStr := DBStructure{}
+func (db *DB) loadDB() (dStruct, error) {
+	dbStr := dStruct{}
 
 	dbBytes, err := os.ReadFile(db.path)
 	if err != nil {
@@ -208,7 +217,7 @@ func (db *DB) loadDB() (DBStructure, error) {
 }
 
 // writeDB writes the database file to disk
-func (db *DB) writeDB(dbStr DBStructure) error {
+func (db *DB) writeDB(dbStr dStruct) error {
 	fmt.Println("Saving to disk...")
 	dbBytes, err := json.Marshal(dbStr)
 	if err != nil {
@@ -223,6 +232,8 @@ func (db *DB) writeDB(dbStr DBStructure) error {
 	return nil
 }
 
+// AddRevokedToken adds the given token to the revoked tokens database table to
+// prevent future use.
 func (db *DB) AddRevokedToken(token string, revokedAt time.Time) error {
 	db.mux.Lock()
 	defer db.mux.Unlock()
@@ -248,7 +259,7 @@ func (db *DB) AddRevokedToken(token string, revokedAt time.Time) error {
 	return err
 }
 
-// GetTokens returns all revoked tokens in the database
+// GetRevokedTokens returns all revoked tokens in the database
 func (db *DB) GetRevokedTokens() ([]RevokedToken, error) {
 	tokens := []RevokedToken{}
 
