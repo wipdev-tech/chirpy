@@ -76,11 +76,10 @@ func handleGetChirp(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
 }
 
-func handleNewChirp(w http.ResponseWriter, r *http.Request) {
+func handleCreateChirp(w http.ResponseWriter, r *http.Request) {
 	type msg struct {
 		Body string
 	}
-
 	inMsg := msg{}
 	err := json.NewDecoder(r.Body).Decode(&inMsg)
 	if err != nil {
@@ -88,8 +87,11 @@ func handleNewChirp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	bearer := strings.Replace(r.Header.Get("Authorization"), "Bearer ", "", -1)
+	authorID, err := s.AuthorizeUser(bearer)
+
 	if len(inMsg.Body) <= 140 {
-		newChirp, err := s.CreateChirp(inMsg.Body)
+		newChirp, err := s.CreateChirp(authorID, inMsg.Body)
 		if err != nil {
 			fmt.Println("Error creating new chirp")
 			w.WriteHeader(http.StatusInternalServerError)
@@ -107,7 +109,7 @@ func handleNewChirp(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusBadRequest)
 }
 
-func handleNewUser(w http.ResponseWriter, r *http.Request) {
+func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	type OutUsr struct {
 		ID    int    `json:"id"`
 		Email string `json:"email"`

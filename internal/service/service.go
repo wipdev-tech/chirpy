@@ -107,7 +107,7 @@ func (s *Service) GetChirps() []db.Chirp {
 // CreateChirp adds a new chirp to the database after cleaning profane words.
 // Note that the 140-character validation happens at the handler level because
 // it is considered a bad request to send a longer chirp.
-func (s *Service) CreateChirp(body string) (db.Chirp, error) {
+func (s *Service) CreateChirp(authorID int, body string) (db.Chirp, error) {
 	inFields := strings.Fields(body)
 	for i, f := range inFields {
 		lower := strings.ToLower(f)
@@ -117,7 +117,7 @@ func (s *Service) CreateChirp(body string) (db.Chirp, error) {
 	}
 	cleaned := strings.Join(inFields, " ")
 
-	return s.dbConn.CreateChirp(cleaned)
+	return s.dbConn.CreateChirp(authorID, cleaned)
 }
 
 // CreateUser adds a new user to the database after hashing the given password.

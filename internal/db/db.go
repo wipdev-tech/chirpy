@@ -24,8 +24,9 @@ type dStruct struct {
 
 // Chirp holds data associated with a chirp in the chirps database table
 type Chirp struct {
-	ID   int    `json:"id"`
-	Body string `json:"body"`
+	ID       int    `json:"id"`
+	AuthorID int    `json:"author_id"`
+	Body     string `json:"body"`
 }
 
 // User holds data associated with a user in the users database table
@@ -52,7 +53,7 @@ func NewDB(path string) (*DB, error) {
 }
 
 // CreateChirp creates a new chirp and saves it to disk
-func (db *DB) CreateChirp(body string) (Chirp, error) {
+func (db *DB) CreateChirp(authorID int, body string) (Chirp, error) {
 	fmt.Println("Creating chirp...")
 	db.mux.Lock()
 	defer db.mux.Unlock()
@@ -74,6 +75,7 @@ func (db *DB) CreateChirp(body string) (Chirp, error) {
 	}
 
 	newChirp.ID = id
+	newChirp.AuthorID = authorID
 	newChirp.Body = body
 
 	dbStr.Chirps[id] = newChirp
