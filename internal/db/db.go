@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -275,4 +276,29 @@ func (db *DB) GetRevokedTokens() ([]RevokedToken, error) {
 	}
 
 	return tokens, err
+}
+
+func (db *DB) DeleteChirp(chirpID string) error {
+	db.mux.Lock()
+	defer db.mux.Unlock()
+
+	dbStr, err := db.loadDB()
+	if err != nil {
+		return err
+	}
+
+	id, err := strconv.Atoi(chirpID)
+	if err != nil {
+		return err
+	}
+
+	for _, c := range dbStr.Chirps {
+		if c.ID == id {
+			delete(dbStr.Chirps, id)
+			err := db.writeDB(dbStr)
+			return err
+		}
+	}
+
+	return fmt.Errorf("chirp doesn't exist")
 }

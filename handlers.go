@@ -124,7 +124,7 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 
 	dbUser, err := s.CreateUser(inUsr.Email, inUsr.Password)
 	if err != nil {
-		fmt.Println("Error creating new user")
+		fmt.Println("Error creating new user", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -226,5 +226,33 @@ func handleRevoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.WriteHeader(http.StatusOK)
+}
+
+func handleDeleteChirp(w http.ResponseWriter, r *http.Request) {
+	bearer := strings.Replace(r.Header.Get("Authorization"), "Bearer ", "", -1)
+	authorID, err := s.AuthorizeUser(bearer)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	chirpID := chi.URLParam(r, "chirpID")
+	chirp, ok := s.GetChirp(chirpID)
+	if !ok {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	if authorID != chirp.AuthorID {
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	err = s.DeleteChirp(chirpID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 }

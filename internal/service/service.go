@@ -128,7 +128,7 @@ func (s *Service) CreateUser(email string, password string) (db.User, error) {
 	}
 
 	for _, c := range users {
-		if c.Email != email {
+		if c.Email == email {
 			return db.User{}, fmt.Errorf("email %v already exists", email)
 		}
 	}
@@ -335,5 +335,11 @@ func (s *Service) Refresh(userID int) (ResRefresh, error) {
 // Revoke stores the given bearer token in the database
 func (s *Service) Revoke(bearer string) error {
 	err := s.dbConn.AddRevokedToken(bearer, time.Now())
+	return err
+}
+
+// DeleteChirp deletes the chrip of a given ID
+func (s *Service) DeleteChirp(chirpID string) error {
+	err := s.dbConn.DeleteChirp(chirpID)
 	return err
 }
