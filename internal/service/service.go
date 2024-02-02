@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -40,6 +41,30 @@ type ResRefresh struct {
 type Service struct {
 	FileserverHits int
 	dbConn         *db.DB
+}
+
+func sortChirpsAsc(a, b db.Chirp) int {
+	if a.ID < b.ID {
+		return -1
+	}
+
+	if a.ID > b.ID {
+		return 1
+	}
+
+	return 0
+}
+
+func sortChirpsDesc(a, b db.Chirp) int {
+	if a.ID < b.ID {
+		return 1
+	}
+
+	if a.ID > b.ID {
+		return -1
+	}
+
+	return 0
 }
 
 // MiddlewareMetricsInc wraps around app (user-facing) HTTP handlers to
@@ -97,10 +122,39 @@ func (s *Service) GetChirp(chirpID string) (db.Chirp, bool) {
 }
 
 // GetChirps queries the database for all chirps, returning them in a slice.
-func (s *Service) GetChirps() []db.Chirp {
+func (s *Service) GetChirps(sortAsc bool) []db.Chirp {
 	chirps, err := s.dbConn.GetChirps()
 	if err != nil {
 		panic(err)
+	}
+
+	if sortAsc {
+		slices.SortFunc(chirps, sortChirpsAsc)
+	} else {
+		slices.SortFunc(chirps, sortChirpsDesc)
+	}
+	return chirps
+}
+
+// GetChirpsByAuthor queries the database for all chirps authored by the user
+// with the given ID, returning them in a slice.
+func (s *Service) GetChirpsByAuthor(authorID int, sortAsc bool) []db.Chirp {
+	chirps := []db.Chirp{}
+	allChirps, err := s.dbConn.GetChirps()
+	if err != nil {
+		panic(err)
+	}
+
+	for _, c := range allChirps {
+		if c.AuthorID == authorID {
+			chirps = append(chirps, c)
+		}
+	}
+
+	if sortAsc {
+		slices.SortFunc(chirps, sortChirpsAsc)
+	} else {
+		slices.SortFunc(chirps, sortChirpsDesc)
 	}
 	return chirps
 }

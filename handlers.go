@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -51,10 +52,32 @@ func handleReset(w http.ResponseWriter, _ *http.Request) {
 	}
 }
 
-func handleGetChirps(w http.ResponseWriter, _ *http.Request) {
-	chirps := s.GetChirps()
+func handleGetChirps(w http.ResponseWriter, r *http.Request) {
+	authorIDParam := r.URL.Query().Get("author_id")
+	sortParam := r.URL.Query().Get("sort")
+	sortAsc := true
+	if sortParam == "desc" {
+		sortAsc = false
+	}
+
+	if authorIDParam == "" {
+		chirps := s.GetChirps(sortAsc)
+		w.WriteHeader(http.StatusOK)
+		err := json.NewEncoder(w).Encode(chirps)
+		if err != nil {
+			panic(err)
+		}
+		return
+	}
+
+	authorID, err := strconv.Atoi(authorIDParam)
+	if err != nil {
+		panic(err)
+	}
+
+	chirps := s.GetChirpsByAuthor(authorID, sortAsc)
 	w.WriteHeader(http.StatusOK)
-	err := json.NewEncoder(w).Encode(chirps)
+	err = json.NewEncoder(w).Encode(chirps)
 	if err != nil {
 		panic(err)
 	}
