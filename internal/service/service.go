@@ -400,6 +400,8 @@ func (s *Service) DeleteChirp(chirpID string) error {
 	return err
 }
 
+// UpgradeChirpyRed upgrades the user with the given ID for Chirpy Red
+// subscription
 func (s *Service) UpgradeChirpyRed(userID int) error {
 	err := s.dbConn.UpgradeChirpyRed(userID)
 	return err

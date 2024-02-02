@@ -112,6 +112,10 @@ func handleCreateChirp(w http.ResponseWriter, r *http.Request) {
 
 	bearer := strings.Replace(r.Header.Get("Authorization"), "Bearer ", "", -1)
 	authorID, err := s.AuthorizeUser(bearer)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 
 	if len(inMsg.Body) <= 140 {
 		newChirp, err := s.CreateChirp(authorID, inMsg.Body)
@@ -299,7 +303,11 @@ func handlePolkaWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	inEvent := InEvent{}
-	json.NewDecoder(r.Body).Decode(&inEvent)
+	err := json.NewDecoder(r.Body).Decode(&inEvent)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
 	if inEvent.Event == "user.upgraded" {
 		userID := inEvent.Data.UserID

@@ -279,6 +279,7 @@ func (db *DB) GetRevokedTokens() ([]RevokedToken, error) {
 	return tokens, err
 }
 
+// DeleteChirp deletes the chirp of the given ID
 func (db *DB) DeleteChirp(chirpID string) error {
 	db.mux.Lock()
 	defer db.mux.Unlock()
@@ -304,6 +305,8 @@ func (db *DB) DeleteChirp(chirpID string) error {
 	return fmt.Errorf("chirp doesn't exist")
 }
 
+// UpgradeChirpyRed upgrades the user with the given ID for Chirpy Red
+// subscription
 func (db *DB) UpgradeChirpyRed(userID int) error {
 	dbStruct, err := db.loadDB()
 	if err != nil {
