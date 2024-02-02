@@ -111,8 +111,9 @@ func handleCreateChirp(w http.ResponseWriter, r *http.Request) {
 
 func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	type OutUsr struct {
-		ID    int    `json:"id"`
-		Email string `json:"email"`
+		ID          int    `json:"id"`
+		Email       string `json:"email"`
+		IsChirpyRed bool   `json:"is_chirpy_red"`
 	}
 
 	inUsr := reqUserData{}
@@ -129,7 +130,11 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	outUsr := OutUsr{ID: dbUser.ID, Email: dbUser.Email}
+	outUsr := OutUsr{
+		ID:          dbUser.ID,
+		Email:       dbUser.Email,
+		IsChirpyRed: dbUser.IsChirpyRed,
+	}
 	w.WriteHeader(http.StatusCreated)
 	err = json.NewEncoder(w).Encode(outUsr)
 	if err != nil {
@@ -254,5 +259,32 @@ func handleDeleteChirp(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func handlePolkaWebhook(w http.ResponseWriter, r *http.Request) {
+	type InEvent struct {
+		Event string `json:"event"`
+		Data  struct {
+			UserID int `json:"user_id"`
+		} `json:"data"`
+	}
+
+	if r.Header.Get("Authorization") != "ApiKey "+os.Getenv("POLKA_KEY") {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	inEvent := InEvent{}
+	json.NewDecoder(r.Body).Decode(&inEvent)
+
+	if inEvent.Event == "user.upgraded" {
+		userID := inEvent.Data.UserID
+		err := s.UpgradeChirpyRed(userID)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+
 	w.WriteHeader(http.StatusOK)
 }

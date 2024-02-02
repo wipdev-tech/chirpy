@@ -18,8 +18,9 @@ import (
 
 // ResUserData holds user data to be used by handlers in HTTP responses
 type ResUserData struct {
-	ID    int    `json:"id"`
-	Email string `json:"email"`
+	ID          int    `json:"id"`
+	Email       string `json:"email"`
+	IsChirpyRed bool   `json:"is_chirpy_red"`
 }
 
 // ResUserDataT embeds resUserData with the addition of access and refresh JWTS
@@ -169,6 +170,7 @@ func (s *Service) Login(email string, password string) (ResUserDataT, error) {
 
 			outUser.ID = u.ID
 			outUser.Email = u.Email
+			outUser.IsChirpyRed = u.IsChirpyRed
 			outUser.Token = accessStr
 			outUser.RefreshToken = refreshStr
 			return outUser, nil
@@ -341,5 +343,10 @@ func (s *Service) Revoke(bearer string) error {
 // DeleteChirp deletes the chrip of a given ID
 func (s *Service) DeleteChirp(chirpID string) error {
 	err := s.dbConn.DeleteChirp(chirpID)
+	return err
+}
+
+func (s *Service) UpgradeChirpyRed(userID int) error {
+	err := s.dbConn.UpgradeChirpyRed(userID)
 	return err
 }

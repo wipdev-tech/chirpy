@@ -32,9 +32,10 @@ type Chirp struct {
 
 // User holds data associated with a user in the users database table
 type User struct {
-	ID       int    `json:"id"`
-	Email    string `json:"email"`
-	Password string `json:"user"`
+	ID          int    `json:"id"`
+	Email       string `json:"email"`
+	Password    string `json:"user"`
+	IsChirpyRed bool   `json:"is_chirpy_red"`
 }
 
 // RevokedToken holds data associated with a revoked token in the
@@ -301,4 +302,27 @@ func (db *DB) DeleteChirp(chirpID string) error {
 	}
 
 	return fmt.Errorf("chirp doesn't exist")
+}
+
+func (db *DB) UpgradeChirpyRed(userID int) error {
+	dbStruct, err := db.loadDB()
+	if err != nil {
+		return err
+	}
+
+	for i, u := range dbStruct.Users {
+		if u.ID == userID {
+			newUser := User{
+				ID:          u.ID,
+				Email:       u.Email,
+				Password:    u.Password,
+				IsChirpyRed: true,
+			}
+			dbStruct.Users[i] = newUser
+			break
+		}
+	}
+
+	err = db.writeDB(dbStruct)
+	return err
 }

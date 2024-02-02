@@ -36,6 +36,8 @@ func main() {
 	apiRouter.Post("/refresh", handleRefresh)
 	apiRouter.Post("/revoke", handleRevoke)
 
+	apiRouter.Post("/polka/webhooks", handlePolkaWebhook)
+
 	// Admin area routes
 	adminRouter := chi.NewRouter()
 	adminRouter.Get("/metrics", handleMetrics)
